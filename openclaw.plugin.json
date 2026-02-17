@@ -13,12 +13,12 @@
       "port": {
         "type": "number",
         "description": "Server port (used if url not set)",
-        "default": 9377
+        "default": 3100
       },
       "autoStart": {
         "type": "boolean",
         "description": "Auto-start the camofox-browser server with the Gateway",
-        "default": true
+        "default": false
       }
     },
     "additionalProperties": false
@@ -26,11 +26,11 @@
   "uiHints": {
     "url": {
       "label": "Server URL",
-      "placeholder": "http://localhost:9377"
+      "placeholder": "http://localhost:3100"
     },
     "port": {
       "label": "Server Port",
-      "placeholder": "9377"
+      "placeholder": "3100"
     },
     "autoStart": {
       "label": "Auto-start server with Gateway"

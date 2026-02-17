@@ -180,13 +180,14 @@ function toToolResult(data: unknown): ToolResult {
 
 export default function register(api: PluginApi) {
   const cfg = api.pluginConfig ?? (api.config as unknown as PluginConfig);
-  const port = cfg.port || 9377;
+  const port = cfg.port || 3100;
   const baseUrl = cfg.url || `http://localhost:${port}`;
-  const autoStart = cfg.autoStart !== false; // default true
+  const autoStart = cfg.autoStart === true; // default false — Docker LaunchAgent manages lifecycle
   const pluginDir = getPluginDir();
   const fallbackUserId = `camofox-${randomUUID()}`;
 
-  // Auto-start server if configured (default: true)
+  // Auto-start server if configured (default: false)
+  // Prefers Docker container over bare node server
   if (autoStart) {
     (async () => {
       const alreadyRunning = await checkServerRunning(baseUrl);
@@ -194,6 +195,27 @@ export default function register(api: PluginApi) {
         api.log?.info?.(`Camoufox server already running at ${baseUrl}`);
       } else {
         try {
+          // Try Docker first (preferred for Milo's setup)
+          const { execSync } = await import("child_process");
+          try {
+            const containerState = execSync("docker inspect -f '{{.State.Status}}' camofox 2>/dev/null", { encoding: "utf-8" }).trim();
+            if (containerState === "exited" || containerState === "created") {
+              execSync("docker start camofox", { encoding: "utf-8" });
+              api.log?.info?.("Started camofox Docker container");
+              // Wait for container to become healthy
+              for (let i = 0; i < 20; i++) {
+                await new Promise((r) => setTimeout(r, 500));
+                if (await checkServerRunning(baseUrl)) {
+                  api.log?.info?.(`Camoufox Docker container ready on port ${port}`);
+                  return;
+                }
+              }
+              api.log?.error?.("Docker container started but server not reachable");
+              return;
+            }
+          } catch {
+            // Docker not available or container doesn't exist — fall back to node
+          }
           serverProcess = await startServer(pluginDir, port, api.log);
         } catch (err) {
           api.log?.error?.(`Failed to auto-start server: ${(err as Error).message}`);
@@ -662,8 +684,8 @@ export default function register(api: PluginApi) {
             console.log("      camofox-browser:");
             console.log("        enabled: true");
             console.log("        config:");
-            console.log("          port: 9377");
-            console.log("          autoStart: true");
+            console.log("          port: 3100");
+            console.log("          autoStart: false");
             console.log("");
             console.log("To use camofox as the ONLY browser tool, disable the built-in:");
             console.log("");
